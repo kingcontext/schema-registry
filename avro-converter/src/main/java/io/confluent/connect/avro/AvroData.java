@@ -437,12 +437,24 @@ public class AvroData {
 
         case STRUCT: {
           Struct struct = (Struct) value;
-          if (!struct.schema().equals(schema))
+          if (!struct.schema().equals(schema)) {
             throw new DataException("Mismatching struct schema");
+          }
           GenericRecordBuilder convertedBuilder = new GenericRecordBuilder(avroSchema);
           for (Field field : schema.fields()) {
-            org.apache.avro.Schema fieldAvroSchema = avroSchema.getField(field.name()).schema();
-            convertedBuilder.set(
+        	org.apache.avro.Schema fieldAvroSchema = avroSchema.getField(field.name()).schema();
+            if (field.schema().isOptional()) {
+	        	List<org.apache.avro.Schema> schemas = fieldAvroSchema.getTypes();
+	        	org.apache.avro.Schema nullSchema = org.apache.avro.Schema.create(org.apache.avro.Schema.Type.NULL);
+	        	org.apache.avro.Schema nSchema = nullSchema;
+	        	int i = 0;
+	        	while(i < schemas.size() && nSchema.equals(nullSchema)) {
+	        		nSchema = schemas.get(i);
+	        		i++;
+	        	}
+	        	fieldAvroSchema = nSchema;
+            }
+         	convertedBuilder.set(
                 field.name(),
                 fromConnectData(field.schema(), fieldAvroSchema, struct.get(field), false, true));
           }
@@ -453,7 +465,7 @@ public class AvroData {
           throw new DataException("Unknown schema type: " + schema.type());
       }
     } catch (ClassCastException e) {
-      throw new DataException("Invalid type for " + schema.type() + ": " + value.getClass());
+      throw new DataException("Invalid type for " + schema.type() + ": " + value.getClass(), e);
     }
   }
 
