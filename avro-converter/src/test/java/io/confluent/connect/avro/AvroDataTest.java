@@ -150,6 +150,47 @@ public class AvroDataTest {
     checkNonRecordConversionNull(Schema.OPTIONAL_STRING_SCHEMA);
   }
 
+
+  @Test
+  public void testFromConnectOptionalNestedRecord() {
+	  Schema recordSchema1 = SchemaBuilder.struct()
+			  .optional()
+			  .field("string", Schema.STRING_SCHEMA)
+			  .build();
+
+	  Schema schema = SchemaBuilder.struct()
+			  .field("test", recordSchema1)
+		      .build();
+	  
+	  Struct test = new Struct(recordSchema1).put("string", "somestring");
+	  Struct struct = new Struct(schema).put("test", test);
+
+	  Object convertedRecord = avroData.fromConnectData(schema, struct);
+	  
+	  org.apache.avro.Schema avroRecordSchema1 = org.apache.avro.SchemaBuilder
+			  .record(AvroData.DEFAULT_SCHEMA_NAME).namespace(AvroData.NAMESPACE) // default values
+			  .fields()
+			  .requiredString("string")
+			  .endRecord();
+	  
+	  org.apache.avro.Schema avroSchema = org.apache.avro.SchemaBuilder
+		        .record(AvroData.DEFAULT_SCHEMA_NAME).namespace(AvroData.NAMESPACE) // default values
+			  	.fields()
+			  	.name("test").type().unionOf().nullType().and().type(avroRecordSchema1).endUnion().noDefault()
+			  	.endRecord();
+
+	  org.apache.avro.generic.GenericRecord avroTest = new org.apache.avro.generic.GenericRecordBuilder(avroRecordSchema1)
+	  	.set("string", "somestring")
+	  	.build();
+	  
+	  org.apache.avro.generic.GenericRecord avroRecord = new org.apache.avro.generic.GenericRecordBuilder(avroSchema)
+        .set("test", avroTest)
+        .build();
+	  
+	    assertEquals(avroSchema, ((org.apache.avro.generic.GenericRecord) convertedRecord).getSchema());
+	    assertEquals(avroRecord, convertedRecord);
+  }
+  
   @Test
   public void testFromConnectComplex() {
     Schema schema = SchemaBuilder.struct()
@@ -678,6 +719,7 @@ public class AvroDataTest {
         .optionalString("string")
         .name("array").type(org.apache.avro.SchemaBuilder.builder().nullable().array().items().stringType()).noDefault()
         .endRecord();
+    
     GenericRecord avroRecord = new GenericRecordBuilder(avroSchema)
         .set("string", "xx")
         .set("array", value)
@@ -845,7 +887,6 @@ public class AvroDataTest {
         .type(avroRecordSchema1).and()
         .type(avroRecordSchema2)
         .endUnion();
-
 
     Schema recordSchema1 = SchemaBuilder.struct().name("Test1")
         .field("test", Schema.INT32_SCHEMA).optional().build();
